@@ -1,0 +1,1 @@
+rm -f hello.o HELLO.elf HELLO.hex

@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "pico/stdlib.h"
+
 #include "rdisk.h"
 
 #ifndef RDISK_MAX_FILES
@@ -167,7 +169,7 @@ static int rdisk_delete(rdisk_t* d, const char* name) {
     int idx = find_idx(d, name);
     if (idx < 0) return RDISK_E_NOFILE;
 
-    h->files[idx].flags = 0; // データは残るが見えなくなる
+    h->files[idx].flags = 0; // mark unused
     h->num_files--;
     return RDISK_OK;
 }
@@ -222,6 +224,35 @@ static int rdisk_get_ptr(rdisk_t* d, const char* name, void** ptr, uint32_t* len
     return RDISK_OK;
 }
 
+static int rdisk_get_ptr_cap(rdisk_t* d, const char* name, void** ptr, uint32_t* cap) {
+    if (!d || !d->base || !name || !ptr || !cap) return RDISK_E_BADARG;
+    rd_hdr_t* h = (rd_hdr_t*)d->base;
+    if (h->magic != RDISK_MAGIC) return RDISK_E_NOINIT;
+
+    int idx = find_idx(d, name);
+    if (idx < 0) return RDISK_E_NOFILE;
+
+    rd_file_t* f = &h->files[idx];
+    *ptr = (void*)(d->base + f->data_off);
+    *cap = f->cap;
+    return RDISK_OK;
+}
+
+static int rdisk_set_size(rdisk_t* d, const char* name, uint32_t size) {
+    if (!d || !d->base || !name) return RDISK_E_BADARG;
+    rd_hdr_t* h = (rd_hdr_t*)d->base;
+    if (h->magic != RDISK_MAGIC) return RDISK_E_NOINIT;
+
+    int idx = find_idx(d, name);
+    if (idx < 0) return RDISK_E_NOFILE;
+
+    rd_file_t* f = &h->files[idx];
+    if (size > f->cap) return RDISK_E_RANGE;
+    f->size = size;
+    return RDISK_OK;
+}
+
+
 static uint8_t g_disk_mem[64 * 1024];
 static rdisk_t g_disk;
 static int32_t g_disk_inited = 0;
@@ -270,6 +301,26 @@ int32_t rdisk_cmd_save(int32_t argc, char **argv)
     rdisk_write(&g_disk, argv[1], argv[2], (uint32_t)strlen_s(argv[2]));
     return 0;
 }
+int32_t rdisk_cmd_delete(int32_t argc, char **argv)
+{
+    int len;
+    if (argc != 2) {
+        return -1;
+    }
+
+    if (!g_disk_inited) {
+        printf("Disk not initialized. Please format first.\n");
+        return -1;
+    }
+
+    len = strlen_s(argv[1]);
+    if (len >= RDISK_NAME_MAX) {
+        return -1;
+    }
+
+    rdisk_delete(&g_disk, argv[1]);
+    return 0;
+}
 
 int32_t rdisk_cmd_type(int32_t argc, char **argv)
 {
@@ -303,4 +354,306 @@ int32_t rdisk_cmd_type(int32_t argc, char **argv)
     putchar('\n');
     return 0;
 }
+
+/*
+ * Intel HEX record:
+ * :LLAAAATT[DD...]CC
+ *  LL = data length (bytes)
+ *  AAAA = address (16-bit)
+ *  TT = record type
+ *  DD = data bytes
+ *  CC = checksum (two's complement of sum of all bytes from LL..DD)
+ */
+
+static int hex_nib(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
+static int hex_byte(const char* p) {
+    int hi = hex_nib(p[0]);
+    int lo = hex_nib(p[1]);
+    if (hi < 0 || lo < 0) return -1;
+    return (hi << 4) | lo;
+}
+
+// コメントは英語でお願いします。
+// オプション：type04/type05の情報を保持したい場合に使う
+static uint32_t g_ext_linear_base = 0;   // (type 04) << 16
+static uint32_t g_start_linear_addr = 0; // (type 05)
+
+// line: HEX record line
+// dst: 書き込み先バッファ
+// io_len: 書き込み済みバイト数（先頭からのオフセット）
+// cap: dstのキャパシティ（バイト数）
+// 戻り値: 正常終了: 1 (データレコード書き込み成功)
+//          EOFレコード: 99
+//          無視レコード: 0
+//          エラー: 負値 (各種エラーコード)
+static int ihex_feed_line_to_buffer(const char* line,
+                             uint8_t* dst,
+                             uint32_t* io_len,
+                             uint32_t cap)
+{
+    if (!line || !dst || !io_len) return -100;
+
+    // 空行は無視
+    if (line[0] == '\0') return 0;
+
+    // 先頭 ':'
+    if (line[0] != ':') return -1;
+
+    // 最低長チェック: ":LLAAAATTCC" -> 1 + 2+4+2+2 = 13 chars
+    // (データ0バイトでも13文字必要)
+    // 例: :00000001FF
+    // 実際には line の長さを測らず、必要箇所アクセス前に軽くチェック
+    // ここでは最低限の存在チェックのみ（短すぎると hex_byte が -1 になる）
+    int ll = hex_byte(line + 1);
+    int a1 = hex_byte(line + 3);
+    int a2 = hex_byte(line + 5);
+    int tt = hex_byte(line + 7);
+    if (ll < 0 || a1 < 0 || a2 < 0 || tt < 0) return -2;
+    if (ll > 255) return -3;
+
+    const char* p = line + 9;
+
+    // チェックサム計算
+    uint32_t sum = (uint8_t)ll + (uint8_t)a1 + (uint8_t)a2 + (uint8_t)tt;
+
+    // データ部読み取り
+    uint8_t data[256];
+    for (int i = 0; i < ll; i++) {
+        int b = hex_byte(p + i * 2);
+        if (b < 0) return -4;
+        data[i] = (uint8_t)b;
+        sum += data[i];
+    }
+    p += ll * 2;
+
+    // チェックサム byte
+    int cc = hex_byte(p);
+    if (cc < 0) return -5;
+
+    // sum + checksum の下位8bitが0になればOK（2の補数）
+    if (((uint8_t)(sum + (uint8_t)cc)) != 0) return -6;
+
+    // レコード種別ごとの処理
+    switch (tt) {
+    case 0x00: { // Data record
+        // “連続格納”方式：アドレスは無視して追記
+        if (*io_len + (uint32_t)ll > cap) return -7; // overflow
+        for (int i = 0; i < ll; i++) {
+            dst[(*io_len)++] = data[i];
+        }
+        return 1;
+    }
+
+    case 0x01: // EOF
+        return 99;
+
+    case 0x04: { // Extended Linear Address (2 bytes)
+        if (ll != 2) return -8;
+        // 上位16bitを保持（本方式では通常使わないがデバッグ用に）
+        g_ext_linear_base = ((uint32_t)data[0] << 24) | ((uint32_t)data[1] << 16);
+        return 0;
+    }
+
+    case 0x05: { // Start Linear Address (4 bytes)
+        if (ll != 4) return -9;
+        g_start_linear_addr = ((uint32_t)data[0] << 24) |
+                              ((uint32_t)data[1] << 16) |
+                              ((uint32_t)data[2] <<  8) |
+                              ((uint32_t)data[3] <<  0);
+        return 0;
+    }
+
+    default:
+        // その他（02/03など）は最小実装では無視
+        return 0;
+    }
+}
+
+#define INPUT_BUFFER_SIZE 256
+
+static int read_line(char* buf, int maxlen)
+{
+    char* input = buf;
+    int index = 0;
+
+    while (true) {
+        int ch = getchar_timeout_us(0);  // Non-blocking read
+        if (ch != PICO_ERROR_TIMEOUT) {
+            if (ch == '\r' || ch == '\n') {
+                input[index] = '\0';  // Null-terminate the string
+                break;
+            } else if (index < INPUT_BUFFER_SIZE - 1) {
+                input[index++] = (char)ch;
+                putchar(ch);  // Echo back
+            }
+        }
+        sleep_ms(10);  // Reduce CPU load
+    }
+    return index;
+}
+
+static uint32_t parse_hex_u32(const char* s){
+    uint32_t v=0;
+    while (*s){
+        int n = -1;
+        if ('0'<=*s && *s<='9') n=*s-'0';
+        else if ('A'<=*s && *s<='F') n=*s-'A'+10;
+        else if ('a'<=*s && *s<='f') n=*s-'a'+10;
+        else break;
+        v = (v<<4) | (uint32_t)n;
+        s++;
+    }
+    return v;
+}
+
+// line exsample: "loadhex HELLO 400" (cap=0x400)
+int32_t rdisk_cmd_loadhex(int32_t argc, char **argv)
+{
+    if (argc != 3){
+        return -1;
+    }
+    uint32_t cap = parse_hex_u32(argv[2]);
+    if (cap == 0){
+        printf("caphex must be >0\n");
+        return -1;
+    }
+
+    // create file
+    if (rdisk_create(&g_disk, argv[1], cap) != RDISK_OK){
+        printf("(create failed) maybe exists? try del first.\n");
+        return -1;
+    }
+
+    void* ptr=0; 
+    uint32_t real_cap=0;
+    if (rdisk_get_ptr_cap(&g_disk, argv[1], &ptr, &real_cap) != RDISK_OK){
+        printf("(get ptr failed)\n");
+        return -1;
+    }
+
+    printf("[LOADHEX] send Intel HEX lines, end with EOF(:..01..)\n");
+
+    uint8_t* dst = (uint8_t*)ptr;
+    uint32_t len = 0;
+
+    char ihex[600];
+    while (1){
+        printf("\n(IHEX)> ");
+        int n = read_line(ihex, sizeof(ihex));
+        if (n <= 0) continue;
+
+        int r = ihex_feed_line_to_buffer(ihex, dst, &len, real_cap);
+        if (r == 99) break;
+        if (r < 0){
+            printf("LOADHEX ERROR\n");
+            break;
+        }
+    }
+
+    rdisk_set_size(&g_disk, argv[1], len);
+
+    printf("[SAVED] %s\n", argv[1]);
+    printf("size = 0x%08X \n", len);
+
+    return 0;
+}
+
+#define RUN_ADDR  (0x20020000u)
+
+static void mem_copy8(uint8_t* d, const uint8_t* s, uint32_t n){
+    for (uint32_t i=0;i<n;i++) d[i]=s[i];
+}
+
+typedef struct {
+    int (*puts)(const char*);
+    void (*exit)(int code);
+} svc_tbl_t;
+
+#define SVC_TBL_ADDR 0x20030000u   // 例：安全なRAM固定位置に置く（要調整）
+static inline volatile svc_tbl_t* svc_tbl(void){
+    return (volatile svc_tbl_t*)SVC_TBL_ADDR;
+}
+
+#include <stdint.h>
+#include <setjmp.h>
+
+static jmp_buf g_run_jmp;
+static volatile int g_exit_code = 0;
+static volatile int g_in_run = 0;
+
+static void os_exit_impl(int code){
+    g_exit_code = code;
+    g_in_run = 0;
+    longjmp(g_run_jmp, 1);      // ★ここでrun元へ復帰
+}
+
+static void service_table_init(void)
+{
+    svc_tbl()->puts = puts;
+    svc_tbl()->exit = os_exit_impl;
+}
+
+static int os_run_image(uint32_t load_addr)
+{
+    // 復帰点設定
+    g_in_run = 1;
+    g_exit_code = 0;
+
+    if (setjmp(g_run_jmp) != 0) {
+        // longjmpで戻ってきた
+        return g_exit_code;
+    }
+
+    // Thumbなので bit0=1 でジャンプ
+    void (*entry)(void) = (void(*)(void))((load_addr) | 1u);
+    entry();
+
+    // entryがreturnで戻ってきた場合（exitを呼ばないアプリ）
+    g_in_run = 0;
+    return 0;
+}
+
+// "run NAME [ADDR]"
+int32_t rdisk_cmd_run(int32_t argc, char **argv)
+{
+    if (argc < 2 || argc > 3){
+        printf("Usage: run <name> [addrhex]\n");
+        return -1;
+    }
+    const char* name = argv[1];
+    uint32_t addr = (argc >= 3) ? parse_hex_u32(argv[2]) : (uint32_t)RUN_ADDR;
+
+    void* p=0; 
+    uint32_t len=0;
+
+    if (rdisk_get_ptr(&g_disk, name, &p, &len) != RDISK_OK){
+        printf("No such file\n");
+        return -1;
+    }
+    if (len == 0){
+        printf("Empty file\n");
+        return -1;
+    }
+
+    // サービステーブル初期化
+    service_table_init();
+
+    // コピー
+    mem_copy8((uint8_t*)addr, (const uint8_t*)p, len);
+
+    printf("[RUN] %s at 0x%08X\n", name, addr);
+
+    os_run_image(addr);
+
+    printf("[RETURN]\n");
+    return 0;
+}
+
+
 
