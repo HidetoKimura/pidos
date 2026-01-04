@@ -1,0 +1,8 @@
+#pragma once
+#include <stdint.h>
+#include <stddef.h>
+
+int32_t rdisk_cmd_format(int32_t argc, char **argv);
+int32_t rdisk_cmd_dir(int32_t argc, char **argv);
+int32_t rdisk_cmd_save(int32_t argc, char **argv);
+int32_t rdisk_cmd_type(int32_t argc, char **argv);
