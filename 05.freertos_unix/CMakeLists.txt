@@ -15,6 +15,10 @@ add_executable(pico_console
     exec.c
     util.c
     console.c
+    kernel/proc.c
+    kernel/vfs.c
+    kernel/syscall.c
+    apps/hello_unix.c
     ${FREERTOS_KERNEL_PATH}/portable/MemMang/heap_4.c
     ${FREERTOS_KERNEL_PATH}/timers.c 
 )

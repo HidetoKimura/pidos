@@ -7,11 +7,17 @@
 #include "semphr.h"
 
 #include "console.h"
+#include "kernel/syscall.h"
+#include "kernel/proc.h"
 
 /* -------- main -------- */
 int main() {
     /* Initialize console (UART + buffers) before tasks */
     ConsoleInit();
+
+    /* Initialize minimal unix-like kernel services */
+    proc_init();
+    sys_init();
 
     /* Console tasks */
     xTaskCreate(ConsoleRxTask,  "ConsoleRx",1024, NULL, 2, NULL);

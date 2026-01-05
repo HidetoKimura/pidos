@@ -58,6 +58,7 @@ static QueueHandle_t        lineQueue = NULL;               /* lines -> parser *
 static QueueHandle_t        txQueue = NULL;                 /* messages -> TX */
 static QueueHandle_t        modalQueue = NULL;              /* lines -> modal consumer */
 static volatile int         modalActive = 0;
+static volatile int         interrupt_flag = 0;             /* set on Ctrl-C (^C) */
 
 /* --- Parser helper --- */
 static void parse_input_stream(char* s, CommandList* cmd)
@@ -173,6 +174,13 @@ void ConsoleRxTask(void *arg)
                     /* Visual backspace */
                     if (!modalActive) console_printf("\b \b");
                 }
+            } else if (ch == 0x03) { /* Ctrl-C */
+                interrupt_flag = 1;
+                if (!modalActive) {
+                    /* Cancel current input line and show prompt */
+                    console_printf("^C\n> ");
+                    idx = 0;
+                }
             } else if (ch >= 32 && ch <= 126) { /* printable */
                 if (idx < INPUT_BUFFER_SIZE - 1) {
                     line[idx++] = (char)ch;
@@ -282,16 +290,31 @@ void console_modal_end(void)
 int console_readline(char* buf, size_t max, uint32_t timeout_ms)
 {
     if (!buf || max == 0) return -1;
-    TickType_t to = (timeout_ms == (uint32_t)0xFFFFFFFFu)
-                    ? portMAX_DELAY
-                    : pdMS_TO_TICKS(timeout_ms);
+    uint32_t remain_ms = timeout_ms;
+    const uint32_t slice_ms = 20; /* poll interval for Ctrl-C */
     char tmp[INPUT_BUFFER_SIZE];
-    if (xQueueReceive(modalQueue, tmp, to)) {
-        size_t n = strnlen(tmp, INPUT_BUFFER_SIZE);
-        if (n >= max) n = max - 1;
-        memcpy(buf, tmp, n);
-        buf[n] = '\0';
-        return (int)n;
+    for (;;) {
+        if (interrupt_flag) {
+            interrupt_flag = 0;
+            return -2; /* interrupted */
+        }
+        TickType_t wait_ticks;
+        if (timeout_ms == (uint32_t)0xFFFFFFFFu) {
+            wait_ticks = pdMS_TO_TICKS(slice_ms);
+        } else {
+            if (remain_ms == 0) return 0; /* timeout */
+            uint32_t w = (remain_ms < slice_ms) ? remain_ms : slice_ms;
+            wait_ticks = pdMS_TO_TICKS(w);
+        }
+        if (xQueueReceive(modalQueue, tmp, wait_ticks)) {
+            size_t n = strnlen(tmp, INPUT_BUFFER_SIZE);
+            if (n >= max) n = max - 1;
+            memcpy(buf, tmp, n);
+            buf[n] = '\0';
+            return (int)n;
+        }
+        if (timeout_ms != (uint32_t)0xFFFFFFFFu) {
+            if (remain_ms > slice_ms) remain_ms -= slice_ms; else remain_ms = 0;
+        }
     }
-    return 0; /* timeout */
 }

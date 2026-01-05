@@ -12,7 +12,7 @@
 
 #define configMAX_PRIORITIES                5
 #define configMINIMAL_STACK_SIZE            128
-#define configTOTAL_HEAP_SIZE               (20 * 1024)
+#define configTOTAL_HEAP_SIZE               (32 * 1024)
 #define configSUPPORT_DYNAMIC_ALLOCATION    1
 
 /* ---- Synchronization ---- */
@@ -24,13 +24,14 @@
 #define configUSE_MALLOC_FAILED_HOOK    1
 
 #define configASSERT(x) \
-    if (!(x)) { taskDISABLE_INTERRUPTS(); for(;;); }
+    if (!(x)) { portDISABLE_INTERRUPTS(); for(;;); }
 
 /* ---- Enabled APIs ---- */
 #define INCLUDE_vTaskDelay                      1
 #define INCLUDE_vTaskDelayUntil                 1
-#define INCLUDE_xTaskGetTickCount1              1
+#define INCLUDE_xTaskGetTickCount               1
 #define INCLUDE_vTaskSuspend                    1
+#define INCLUDE_vTaskDelete                     1
 #define INCLUDE_xTimerPendFunctionCall          1
 #define INCLUDE_xTimerPendFunctionCallFromISR   1
 
