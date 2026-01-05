@@ -1,16 +1,9 @@
-#include <stdint.h>
-typedef struct {
-    int (*puts)(const char*);
-    void (*exit)(int code);
-} svc_tbl_t;
+// Comments must be in English.
+#include "service_table.h"
 
-#define SVC_TBL_ADDR 0x20030000u   // 例：安全なRAM固定位置に置く（要調整）
-static inline volatile svc_tbl_t* svc_tbl(void){
-    return (volatile svc_tbl_t*)SVC_TBL_ADDR;
-}
-
+__attribute__((section(".text.main")))
 void main(void){
-    svc_tbl()->puts("HELLO\n");
-    svc_tbl()->exit(123);  // ★OSへ戻る
+    svc_tbl()->puts("[APP]HELLO");
+    svc_tbl()->exit(123);  // Return to the OS
     while(1){}
 }
