@@ -10,6 +10,8 @@ add_executable(pico_console
     commands.c
     basic.c
     rdisk.c
+    exec.c
+    util.c
 )
 
 pico_enable_stdio_uart(pico_console 1)

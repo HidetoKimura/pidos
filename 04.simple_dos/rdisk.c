@@ -6,11 +6,8 @@
 #include "pico/stdlib.h"
 
 #include "rdisk.h"
+#include "util.h"
 #include "service_table.h"
-
-static jmp_buf g_run_jmp;
-static volatile int g_exit_code = 0;
-static volatile int g_in_run = 0;
 
 #ifndef RDISK_MAX_FILES
 #define RDISK_MAX_FILES  32
@@ -272,7 +269,18 @@ int32_t rdisk_cmd_format(int32_t argc, char **argv)
     return 0;
 }
 
-static void print_file(const rd_file_t* f, void* u){
+int32_t rdisk_read_file(const char* name, void** ptr, uint32_t* len)
+ {
+    if (!g_disk_inited) {
+        return RDISK_E_NOINIT;
+    }
+
+    int rc = rdisk_get_ptr(&g_disk, name, ptr, len);
+    return rc;
+}
+
+static void print_file(const rd_file_t* f, void* u)
+{
     (void)u;
     printf("%s  size=%u cap=%u\n", f->name, f->size, f->cap);
 }
@@ -502,19 +510,7 @@ static int read_line(char* buf, int maxlen)
     return index;
 }
 
-static uint32_t parse_hex_u32(const char* s){
-    uint32_t v=0;
-    while (*s){
-        int n = -1;
-        if ('0'<=*s && *s<='9') n=*s-'0';
-        else if ('A'<=*s && *s<='F') n=*s-'A'+10;
-        else if ('a'<=*s && *s<='f') n=*s-'a'+10;
-        else break;
-        v = (v<<4) | (uint32_t)n;
-        s++;
-    }
-    return v;
-}
+
 
 // line exsample: "loadhex HELLO 400" (cap=0x400)
 int32_t rdisk_cmd_loadhex(int32_t argc, char **argv)
@@ -574,87 +570,3 @@ int32_t rdisk_cmd_loadhex(int32_t argc, char **argv)
 
     return 0;
 }
-
-#define RUN_ADDR  (0x20020000u)
-
-static void os_exit_impl(int code){
-    g_exit_code = code;
-    g_in_run = 0;
-    longjmp(g_run_jmp, 1);      // ★Return to the caller here
-}
-
-static void service_table_init(void)
-{
-    svc_tbl()->puts = puts;
-    svc_tbl()->exit = os_exit_impl;
-}
-
-static void mem_copy8(uint8_t* d, const uint8_t* s, uint32_t n)
-{
-    for (uint32_t i=0;i<n;i++) d[i]=s[i];
-}
-
-static int os_run_image(uint32_t load_addr)
-{
-    // Setup for longjmp return
-    g_in_run = 1;
-    g_exit_code = 0;
-
-    if (setjmp(g_run_jmp) != 0) {
-        // Returned via longjmp
-        return g_exit_code;
-    }
-
-    // Thumb mode, so jump with bit0=1
-    void (*entry)(void) = (void(*)(void))((load_addr | 1u));
-    entry();
-
-    // If entry returns (app that does not call exit)
-    g_in_run = 0;
-    return 0;
-}
-
-// "run NAME [ADDR]"
-int32_t rdisk_cmd_run(int32_t argc, char **argv)
-{
-    if (argc < 2 || argc > 3){
-        printf("Usage: run <name> [addrhex]\n");
-        return -1;
-    }
-    if (!g_disk_inited) {
-        printf("Disk not initialized. Please format first.\n");
-        return -1;
-    }
-
-    const char* name = argv[1];
-    uint32_t addr = (argc >= 3) ? parse_hex_u32(argv[2]) : (uint32_t)RUN_ADDR;
-
-    void* p=0; 
-    uint32_t len=0;
-
-    if (rdisk_get_ptr(&g_disk, name, &p, &len) != RDISK_OK){
-        printf("No such file\n");
-        return -1;
-    }
-    if (len == 0){
-        printf("Empty file\n");
-        return -1;
-    }
-
-    // Initialize service table
-    service_table_init();
-
-    // Copy
-    mem_copy8((uint8_t*)addr, (const uint8_t*)p, len);
-
-    printf("[RUN] %s at 0x%08X\n", name, addr);
-
-    int rc = os_run_image(addr);
-
-    printf("[RETURN] rc = %d\n", rc);
-
-    return 0;
-}
-
-
-

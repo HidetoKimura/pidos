@@ -2,6 +2,7 @@
 
 #include "basic.h"
 #include "rdisk.h"
+#include "exec.h"
 
 CommandList commands[] = {
     {basic_cmd_help,    "help",             "help"                                             },    
@@ -12,6 +13,6 @@ CommandList commands[] = {
     {rdisk_cmd_delete,  "delete",           "delete <filename>"                                },    
     {rdisk_cmd_type,    "type",             "type <filename>"                                  },    
     {rdisk_cmd_loadhex, "loadhex",          "loadhex <name> <caphex>"                          },    
-    {rdisk_cmd_run,     "run",              "run <name> [addrhex]"                             },    
+    {exec_cmd_run,      "run",              "run <name> [addrhex]"                             },    
     {NULL,              "",                 ""                                                 }  // End marker                                            
 };
