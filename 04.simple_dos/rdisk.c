@@ -621,6 +621,11 @@ int32_t rdisk_cmd_run(int32_t argc, char **argv)
         printf("Usage: run <name> [addrhex]\n");
         return -1;
     }
+    if (!g_disk_inited) {
+        printf("Disk not initialized. Please format first.\n");
+        return -1;
+    }
+
     const char* name = argv[1];
     uint32_t addr = (argc >= 3) ? parse_hex_u32(argv[2]) : (uint32_t)RUN_ADDR;
 
