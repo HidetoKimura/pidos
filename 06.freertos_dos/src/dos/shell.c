@@ -27,13 +27,15 @@ static void read_line(char* out, int cap) {
     }
     out[n] = '\0';
 }
-
+#define PWD_MAX_PATH 96
 void shell_run(void) {
     char line[DOS_MAX_LINE];
 
     while (1) {
-        dos_puts("A:\\> ");
-
+        char pwd[PWD_MAX_PATH];
+        ramfs_pwd(pwd, sizeof(pwd));
+        dos_printf("%s> ", pwd);
+        
         read_line(line, sizeof(line));
         if (!line[0]) continue;
 

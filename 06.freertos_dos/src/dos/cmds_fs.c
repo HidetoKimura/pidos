@@ -5,17 +5,43 @@
 #include "fs/ramfs.h"
 #include <string.h>
 
-static void cmd_dir(void) {
-    dos_puts(" Directory of A:\\\r\n\r\n");
-    for (int i=0;i<16;i++){
-        char name[16];
-        size_t sz=0;
-        bool used=false;
-        if (!ramfs_list(i, name, sizeof(name), &sz, &used)) continue;
-        if (!used) continue;
-        dos_printf(" %8u  %s\r\n", (unsigned)sz, name);
+// cmds_fs.c（DIR部分差し替え + 追記）
+
+static void cmd_dir(const char* path_or_null) {
+    vfs_err_t e;
+    char pwd[96];
+    // 表示は現在のcwdでよい（path指定のときも簡単化したければ省略可）
+    ramfs_pwd(pwd, sizeof(pwd));
+    dos_printf(" Directory of %s\r\n\r\n", pwd);
+
+    for (int i=0;i<64;i++){
+        ramfs_dirent_t de;
+        if (!ramfs_list_dir(path_or_null, i, &de, &e)) { dos_puts("DIR error.\r\n"); return; }
+        if (!de.used) break;
+
+        if (de.is_dir) dos_printf(" <DIR>     %s\r\n", de.name);
+        else           dos_printf(" %8u  %s\r\n", (unsigned)de.size, de.name);
     }
     dos_puts("\r\n");
+}
+
+static void cmd_cd(const char* path) {
+    vfs_err_t e;
+    if (!ramfs_cd(path, &e)) { dos_puts("The system cannot find the path specified.\r\n"); return; }
+}
+
+static void cmd_md(const char* path) {
+    vfs_err_t e;
+    if (!ramfs_mkdir(path, &e)) { dos_puts("Cannot create directory.\r\n"); return; }
+}
+
+static void cmd_rd(const char* path) {
+    vfs_err_t e;
+    if (!ramfs_rmdir(path, &e)) {
+        if (e == VFS_E_BUSY) dos_puts("Directory not empty.\r\n");
+        else dos_puts("Cannot remove directory.\r\n");
+        return;
+    }
 }
 
 static void cmd_type(const char* path) {
@@ -62,7 +88,27 @@ static void cmd_del(const char* path) {
 }
 
 bool cmds_fs_try(int argc, char** argv) {
-    if (strcmp(argv[0], "DIR") == 0) { cmd_dir(); return true; }
+    if (strcmp(argv[0], "DIR") == 0) {
+        cmd_dir(argc >= 2 ? argv[1] : NULL);
+        return true;
+    }
+    if (strcmp(argv[0], "CD") == 0) {
+        if (argc < 2) {
+            char pwd[96]; ramfs_pwd(pwd, sizeof(pwd));
+            dos_printf("%s\r\n", pwd);
+        } else cmd_cd(argv[1]);
+        return true;
+    }
+    if (strcmp(argv[0], "MD") == 0 || strcmp(argv[0], "MKDIR") == 0) {
+        if (argc < 2) { dos_puts("Usage: MD <dir>\r\n"); return true; }
+        cmd_md(argv[1]); return true;
+    }
+    if (strcmp(argv[0], "RD") == 0 || strcmp(argv[0], "RMDIR") == 0) {
+        if (argc < 2) { dos_puts("Usage: RD <dir>\r\n"); return true; }
+        cmd_rd(argv[1]); return true;
+    }
+
+    // TYPE/COPY/DELはそのまま動く（ramfs_open/deleteがパス対応したので）
     if (strcmp(argv[0], "TYPE") == 0) {
         if (argc < 2) { dos_puts("Usage: TYPE <file>\r\n"); return true; }
         cmd_type(argv[1]); return true;

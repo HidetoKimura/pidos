@@ -1,4 +1,4 @@
-// ramfs.h
+// ramfs.h（差し替え/追記）
 #pragma once
 #include "vfs/vfs.h"
 #include <stddef.h>
@@ -6,12 +6,28 @@
 
 void ramfs_init(void);
 
-// vfsから呼ばれる
+// cwd 操作
+int  ramfs_get_cwd_node(void);
+bool ramfs_cd(const char* path, vfs_err_t* err);
+bool ramfs_pwd(char* out, size_t cap);
+
+// ディレクトリ操作
+bool ramfs_mkdir(const char* path, vfs_err_t* err);
+bool ramfs_rmdir(const char* path, vfs_err_t* err);
+
+// ファイル操作（VFSから）
 int  ramfs_open(const char* path, int mode, vfs_err_t* err);
 int  ramfs_close(int handle);
 int  ramfs_read(int handle, void* buf, size_t len, vfs_err_t* err);
 int  ramfs_write(int handle, const void* buf, size_t len, vfs_err_t* err);
-
-// シェル用
-bool ramfs_list(int idx, char* name_out, size_t name_cap, size_t* size_out, bool* used_out);
 bool ramfs_delete(const char* path, vfs_err_t* err);
+
+// DIR表示用：指定ディレクトリ（NULLならcwd）を列挙
+typedef struct {
+    bool used;
+    bool is_dir;
+    char name[16];
+    size_t size;
+} ramfs_dirent_t;
+
+bool ramfs_list_dir(const char* path_or_null, int idx, ramfs_dirent_t* out, vfs_err_t* err);
