@@ -21,7 +21,9 @@ add_executable(pico_console
   src/fs/flash_fs.c
   src/os/svc_handler.c  
   src/pxe/pxe_loader.c
-)
+  src/xfer/cobs.c
+  src/xfer/xfer_recv.c
+  )
 
 target_include_directories(pico_console PRIVATE
   src

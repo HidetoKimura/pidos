@@ -1,37 +1,47 @@
 #include <stdint.h>
 #include "vfs/vfs.h"
+#include "os/syscall.h"
 
-// 例外フレーム（Cortex-M0+ が自動で積むやつ）
+// Cortex-M0+ exception frame
 typedef struct {
     uint32_t r0,r1,r2,r3,r12,lr,pc,xpsr;
 } exc_frame_t;
 
-// --- syscall番号は r12 を使う設計（アプリ側も r12 に入れて svc） ---
 static int k_write(int fd, const void* buf, int len) {
     vfs_err_t e;
     if (len < 0) return -1;
     return vfs_write(fd, buf, (size_t)len, &e);
 }
 
+static int k_open(const char* path, int flags) {
+    vfs_err_t e;
+    return vfs_open(path, flags, &e);
+}
+static int k_close(int fd) {
+    return vfs_close(fd);
+}
+
 static int syscall_dispatch(int no, int a0, int a1, int a2, int a3) {
     (void)a3;
     switch (no) {
-    case 2: return k_write(a0, (const void*)a1, a2); // SYS_write
-    case 1: return 0;                                // SYS_exit（最短版：戻り値だけ）
+    case SYS_write: return k_write(a0, (const void*)a1, a2);
+    case SYS_open:  return k_open((const char*)a0, a1);
+    case SYS_close: return k_close(a0);
+    case SYS_exit:  return 0;
     default: return -1;
     }
 }
 
-// naked: 例外フレームのポインタをCへ渡す
-__attribute__((naked)) void SVC_Handler(void) {
+// ★ Pico SDK が呼ぶのは isr_svcall
+__attribute__((naked)) void isr_svcall(void) {
     __asm volatile(
         "mov r0, sp\n"
-        "b   SVC_Handler_C\n"
+        "b   isr_svcall_c\n"
     );
 }
 
-void SVC_Handler_C(exc_frame_t* f) {
-    int no = (int)f->r12;
+void isr_svcall_c(exc_frame_t* f) {
+    int no  = (int)f->r12; // syscall番号はr12に入れる設計
     int ret = syscall_dispatch(no, (int)f->r0, (int)f->r1, (int)f->r2, (int)f->r3);
-    f->r0 = (uint32_t)ret; // syscall戻り値
+    f->r0 = (uint32_t)ret;
 }

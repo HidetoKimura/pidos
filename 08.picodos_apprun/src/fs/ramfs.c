@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define RAMFS_MAX_NODES 64
+#define RAMFS_MAX_NODES 16
 #define RAMFS_NAME_CAP  16
 #define RAMFS_FILE_CAP  1024
 #define RAMFS_MAX_FH    8

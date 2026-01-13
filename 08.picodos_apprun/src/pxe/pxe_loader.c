@@ -38,7 +38,7 @@ bool pxe_run_fixed(const char* path, int argc, char** argv) {
 
     if (h.bss_size) memset(APP_BASE + h.image_size, 0, h.bss_size);
 
-    pxe_entry_t entry = (pxe_entry_t)(APP_BASE + h.entry_off);
+    pxe_entry_t entry = (pxe_entry_t)((uintptr_t)(APP_BASE + h.entry_off) | 1u); // ★Thumb bit
     int rc = entry(argc, argv);
     (void)rc;
     return true;

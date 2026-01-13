@@ -7,6 +7,7 @@
 #include "fs/flash_fs.h"
 #include "fs/ramfs.h"
 #include "pxe/pxe_loader.h"
+#include "xfer/xfer_recv.h"
 
 static void cmd_help(void) {
     dos_puts(
@@ -21,6 +22,7 @@ static void cmd_help(void) {
         "  DEL <file>\r\n"
         "  SAVE\r\n"
         "  LOAD\r\n"
+        "  RECV <file>\r\n"
     );
 }
 
@@ -139,6 +141,12 @@ bool cmds_core_try(int argc, char** argv) {
     }
     if (strcmp(argv[0], "LOAD") == 0) {
         cmd_load();
+        return true;
+    }
+
+    if (strcmp(argv[0], "RECV") == 0) {
+        if (argc < 2) { dos_puts("Usage: RECV <path>\r\n"); return true; }
+        if (!xfer_recv_file(argv[1])) dos_puts("RECV failed\r\n");
         return true;
     }
 

@@ -3,9 +3,12 @@
 #include <stdint.h>
 
 enum {
-    SYS_exit  = 1,
-    SYS_write = 2,
+  SYS_exit  = 1,
+  SYS_write = 2,
+  SYS_open  = 3,
+  SYS_close = 4,
 };
+
 
 static inline int sys_call(int no, int a0, int a1, int a2, int a3) {
     register int r0  __asm("r0")  = a0;
@@ -26,4 +29,18 @@ static inline int sys_write(int fd, const void* buf, int len) {
 static inline void sys_exit(int code) {
     sys_call(SYS_exit, code, 0, 0, 0);
     while (1) {}
+}
+
+// vfs flags を “アプリ側に公開する最小セット”
+#define O_RDONLY  0
+#define O_WRONLY  1
+#define O_CREAT   (1<<8)
+#define O_TRUNC   (1<<9)
+#define O_APPEND  (1<<10)
+
+static inline int sys_open(const char* path, int flags) {
+    return sys_call(SYS_open, (int)path, flags, 0, 0);
+}
+static inline int sys_close(int fd) {
+    return sys_call(SYS_close, fd, 0, 0, 0);
 }
