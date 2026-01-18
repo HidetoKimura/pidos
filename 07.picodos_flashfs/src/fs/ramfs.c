@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define RAMFS_MAX_NODES 16
+#define RAMFS_MAX_NODES 64
 #define RAMFS_NAME_CAP  16
 #define RAMFS_FILE_CAP  1024
 #define RAMFS_MAX_FH    8
@@ -427,25 +427,18 @@ bool ramfs_list_dir(const char* path_or_null, int idx, ramfs_dirent_t* out, vfs_
 }
 
 // ---- serialization / deserialization ----
-// 固定長イメージ（Flash向けに単純・堅牢優先）
-// NOTE: RAMFS_MAX_NODES/RAMFS_FILE_CAP を変更したら互換性が壊れるので、versionを上げる。
-#define RAMFS_IMG_MAGIC 0x52465331u  // 'RFS1'
 typedef struct {
-    uint32_t magic;
     uint32_t version;
     int32_t root;
     int32_t cwd;
-    uint32_t node_count;
     node_t  nodes[RAMFS_MAX_NODES];
 } ramfs_image_t;
 
 size_t ramfs_serialize(uint8_t *out, size_t cap) {
     ramfs_image_t img;
-    img.magic = RAMFS_IMG_MAGIC;
-    img.version = 2;
+    img.version = 1;
     img.root = g_root;
     img.cwd  = g_cwd;
-    img.node_count = RAMFS_MAX_NODES;
     memcpy(img.nodes, g_nodes, sizeof(g_nodes));
 
     if (cap < sizeof(img)) return 0;
@@ -457,16 +450,11 @@ bool ramfs_deserialize(const uint8_t *in, size_t len) {
     if (len != sizeof(ramfs_image_t)) return false;
     ramfs_image_t img;
     memcpy(&img, in, sizeof(img));
-    if (img.magic != RAMFS_IMG_MAGIC) return false;
-    if (img.version != 2) return false;
-    if (img.node_count != RAMFS_MAX_NODES) return false;
+    if (img.version != 1) return false;
 
     memcpy(g_nodes, img.nodes, sizeof(g_nodes));
     g_root = img.root;
     g_cwd  = img.cwd;
-
-    // file handle table は永続化しないので必ず初期化
-    memset(g_fh, 0, sizeof(g_fh));
 
     // 最小の整合性チェック
     if (g_root < 0 || g_root >= RAMFS_MAX_NODES) return false;

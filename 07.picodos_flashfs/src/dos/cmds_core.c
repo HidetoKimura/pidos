@@ -6,8 +6,6 @@
 #include <string.h>
 #include "fs/flash_fs.h"
 #include "fs/ramfs.h"
-#include "pxe/pxe_loader.h"
-#include "xfer/xfer_recv.h"
 
 static void cmd_help(void) {
     dos_puts(
@@ -20,12 +18,8 @@ static void cmd_help(void) {
         "  TYPE <file>\r\n"
         "  COPY <src> <dst>\r\n"
         "  DEL <file>\r\n"
-        "  MD <dir>\r\n"
-        "  CD <dir>\r\n"
-        "  RD <dir>\r\n"
         "  SAVE\r\n"
         "  LOAD\r\n"
-        "  RECV <file>\r\n"
     );
 }
 
@@ -96,26 +90,6 @@ static void cmd_load(void) {
     }
 }
 
-
-#define PATH_MAX 64
-static bool cmd_run_pxe(int argc, char** argv) {
-
-    if (argc < 2) { dos_puts("Usage: RUN <app>\r\n"); return true; }
-
-    // 例: 拡張子なければ .PXE を付ける
-    char path[PATH_MAX];
-    strncpy(path, argv[1], sizeof(path)-1);
-    path[sizeof(path)-1] = 0;
-    // 超簡単：末尾に .PXE を足す（既に含むなら省略、PATH探索は後で）
-    if (!strstr(path, ".PXE")) strncat(path, ".PXE", sizeof(path)-strlen(path)-1);
-
-    if (!pxe_run_fixed(path, argc-1, &argv[1])) {
-        dos_puts("PXE load/run failed.\r\n");
-    }
-    return true;
-}
-
-
 bool cmds_core_try(int argc, char** argv) {
     if (strcmp(argv[0], "HELP") == 0) {
         cmd_help(); return true;
@@ -128,28 +102,18 @@ bool cmds_core_try(int argc, char** argv) {
         return rc;
     }
     if (strcmp(argv[0], "RUN") == 0) {
-        bool rc = cmd_run_pxe(argc, argv);
-        return rc;
-#if 0
         if (argc < 2) { dos_puts("Usage: RUN <app> [args]\r\n"); return true; }
         if (!apps_run(argv[1], argc-1, &argv[1])) {
             dos_puts("App not found.\r\n");
         }
         return true;
-#endif
-        }
+    }
     if (strcmp(argv[0], "SAVE") == 0) {
         cmd_save();
         return true;
     }
     if (strcmp(argv[0], "LOAD") == 0) {
         cmd_load();
-        return true;
-    }
-
-    if (strcmp(argv[0], "RECV") == 0) {
-        if (argc < 2) { dos_puts("Usage: RECV <path>\r\n"); return true; }
-        if (!xfer_recv_file(argv[1])) dos_puts("RECV failed\r\n");
         return true;
     }
 

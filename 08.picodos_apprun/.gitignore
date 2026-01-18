@@ -1,2 +1,5 @@
 # Python virtual environment
 .venv/
+
+# igore compiled files from C/C++
+build/
