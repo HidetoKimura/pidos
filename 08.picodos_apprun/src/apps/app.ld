@@ -10,7 +10,7 @@ SECTIONS
   . = ORIGIN(APP);
 
   .text : {
-    KEEP(*(.text.app_entry))   /* app_entryを専用セクションに */
+    KEEP(*(.text.app_entry))   /* Put app_entry into its own section */
     *(.text*)
     *(.rodata*)
   } > APP
@@ -24,6 +24,6 @@ SECTIONS
     *(COMMON)
   } > APP
 
-  /* エントリシンボル */
+  /* Entry symbol */
   PROVIDE(app_entry = app_entry);
 }

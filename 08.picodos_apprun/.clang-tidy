@@ -1,0 +1,10 @@
+Checks: >
+  -*,
+  bugprone-*,
+  readability-*,
+  performance-*,
+  clang-analyzer-*,
+
+WarningsAsErrors: ''
+HeaderFilterRegex: 'src/.*'
+AnalyzeTemporaryDtors: false

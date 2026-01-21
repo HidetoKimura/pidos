@@ -9,12 +9,12 @@ int main(void) {
 
     vfs_init();
 
-    ramfs_init();      // A: ドライブをRAMで用意
+    ramfs_init();      // Provide A: drive in RAM
     if (!flash_fs_load()) {
-        // 初回 or 破損時は初期RAMFSのまま
+        // On first run or corruption, keep initial RAMFS
     }
 
-    dos_init();        // シェル/アプリ登録など
+    dos_init();        // Register shell/apps, etc.
 
     dos_println("PicoDOS (educational) 0.1");
     dos_println("Type HELP.");

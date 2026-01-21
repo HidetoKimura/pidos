@@ -1,9 +1,9 @@
 // cmds_core.c
+#include <string.h>
 #include "dos/cmds_core.h"
 #include "dos/dos_sys.h"
-#include "dos/apps.h"
+#include "dos/apps_builtin.h"
 #include "vfs/vfs.h"
-#include <string.h>
 #include "fs/flash_fs.h"
 #include "fs/ramfs.h"
 #include "pxe/pxe_loader.h"
@@ -36,7 +36,7 @@ static void echo_to_fd(int fd, int argc, char** argv, int from, int to) {
         vfs_write(fd, s, strlen(s), &e);
         if (i != to-1) vfs_write(fd, " ", 1, &e);
     }
-    vfs_write(fd, "\n", 1, &e); // vfs側がCRLFにしてくれる
+    vfs_write(fd, "\n", 1, &e); // vfs converts to CRLF
 }
 
 static bool echo_main(int argc, char** argv) {
@@ -88,7 +88,7 @@ static void cmd_save(void) {
 static void cmd_load(void) {
     dos_puts("Loading...\r\n");
     if (flash_fs_load()) {
-        // 読み込んだ状態が正なのでdirtyはクリア
+        // State is valid after load, so clear dirty
         ramfs_clear_dirty();
         dos_puts("Loaded.\r\n");
     } else {
@@ -102,11 +102,14 @@ static bool cmd_run_pxe(int argc, char** argv) {
 
     if (argc < 2) { dos_puts("Usage: RUN <app>\r\n"); return true; }
 
-    // 例: 拡張子なければ .PXE を付ける
+    // First, try builtin apps by name
+    if (apps_builtin_run(argv[1], argc-1, &argv[1])) return true;
+
+    // Example: append .PXE if no extension
     char path[PATH_MAX];
     strncpy(path, argv[1], sizeof(path)-1);
     path[sizeof(path)-1] = 0;
-    // 超簡単：末尾に .PXE を足す（既に含むなら省略、PATH探索は後で）
+    // Simplest: append .PXE at end (skip if already present; PATH search later)
     if (!strstr(path, ".PXE")) strncat(path, ".PXE", sizeof(path)-strlen(path)-1);
 
     if (!pxe_run_fixed(path, argc-1, &argv[1])) {

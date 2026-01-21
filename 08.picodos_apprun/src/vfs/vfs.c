@@ -79,7 +79,7 @@ int vfs_read(int fd, void* buf, size_t len, vfs_err_t* err) {
     if (fd < 0 || fd >= VFS_MAX_FD) { if (err) *err = VFS_E_INVAL; return -1; }
 
     switch (g_fd[fd].kind) {
-    case FD_CON: return 0; // CONのreadはshell側で扱う（ここは未使用）
+    case FD_CON: return 0; // CON reads are handled by the shell (unused here)
     case FD_NUL: return 0;
     case FD_RAMFILE: return ramfs_read(g_fd[fd].handle, buf, len, err);
     default: if (err) *err = VFS_E_INVAL; return -1;
@@ -92,7 +92,7 @@ int vfs_write(int fd, const void* buf, size_t len, vfs_err_t* err) {
 
     switch (g_fd[fd].kind) {
     case FD_CON:
-        // CRLF寄せ（DOSっぽく）
+        // CRLF formatting (DOS-like)
         for (size_t i=0;i<len;i++){
             char c = ((const char*)buf)[i];
             if (c == '\n') { putchar_raw('\r'); putchar_raw('\n'); }

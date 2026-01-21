@@ -14,7 +14,7 @@ add_executable(pico_console
   src/dos/cmds_core.c
   src/dos/cmds_fs.c
   src/dos/parse.c
-  src/dos/apps.c
+  src/dos/apps_builtin.c
   src/vfs/vfs.c
   src/fs/ramfs.c
   src/util/strutil.c
@@ -23,6 +23,8 @@ add_executable(pico_console
   src/pxe/pxe_loader.c
   src/xfer/cobs.c
   src/xfer/xfer_recv.c
+  src/dos/autoexec.c
+  src/dos/shell_exec.c
   )
 
 target_include_directories(pico_console PRIVATE

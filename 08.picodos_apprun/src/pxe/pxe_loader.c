@@ -1,4 +1,4 @@
-// pxe_loader.c (OS側)
+// pxe_loader.c (OS side)
 #include "pxe_format.h"
 #include "vfs/vfs.h"
 #include <string.h>
@@ -38,7 +38,7 @@ bool pxe_run_fixed(const char* path, int argc, char** argv) {
 
     if (h.bss_size) memset(APP_BASE + h.image_size, 0, h.bss_size);
 
-    pxe_entry_t entry = (pxe_entry_t)((uintptr_t)(APP_BASE + h.entry_off) | 1u); // ★Thumb bit
+    pxe_entry_t entry = (pxe_entry_t)((uintptr_t)(APP_BASE + h.entry_off) | 1u); // Thumb bit
     int rc = entry(argc, argv);
     (void)rc;
     return true;

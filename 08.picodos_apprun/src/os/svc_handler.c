@@ -32,7 +32,7 @@ static int syscall_dispatch(int no, int a0, int a1, int a2, int a3) {
     }
 }
 
-// ★ Pico SDK が呼ぶのは isr_svcall
+// Pico SDK calls into isr_svcall
 __attribute__((naked)) void isr_svcall(void) {
     __asm volatile(
         "mov r0, sp\n"
@@ -41,7 +41,7 @@ __attribute__((naked)) void isr_svcall(void) {
 }
 
 void isr_svcall_c(exc_frame_t* f) {
-    int no  = (int)f->r12; // syscall番号はr12に入れる設計
+    int no  = (int)f->r12; // By design, syscall number is in r12
     int ret = syscall_dispatch(no, (int)f->r0, (int)f->r1, (int)f->r2, (int)f->r3);
     f->r0 = (uint32_t)ret;
 }

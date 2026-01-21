@@ -1,15 +1,17 @@
 #include "dos/dos.h"
 #include "dos/dos_sys.h"
 #include "dos/shell.h"
-#include "dos/apps.h"
+#include "dos/apps_builtin.h"
+#include "dos/autoexec.h"
+#include "dos/shell_exec.h"
 #include <stdarg.h>
 
 void dos_init(void) {
     dos_sys_init();
-    apps_init();
 }
 
 void dos_run(void) {
+    dos_run_autoexec();
     shell_run();
 }
 

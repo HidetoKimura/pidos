@@ -1,4 +1,4 @@
-// ramfs.c（丸ごと差し替え推奨）
+// ramfs.c (full replacement recommended)
 #include "ramfs.h"
 #include "util/strutil.h"
 #include <string.h>
@@ -41,7 +41,7 @@ bool ramfs_is_dirty(void){ return g_dirty; }
 void ramfs_set_dirty(void){ g_dirty = true; }
 void ramfs_clear_dirty(void){ g_dirty = false; }
 
-// mkdir/delete/write など状態を変える箇所の最後で ramfs_set_dirty(); を呼ぶ
+// Call ramfs_set_dirty() at the end of state-changing ops like mkdir/delete/write
 
 static int alloc_node(void) {
     for (int i=0;i<RAMFS_MAX_NODES;i++){
@@ -427,8 +427,8 @@ bool ramfs_list_dir(const char* path_or_null, int idx, ramfs_dirent_t* out, vfs_
 }
 
 // ---- serialization / deserialization ----
-// 固定長イメージ（Flash向けに単純・堅牢優先）
-// NOTE: RAMFS_MAX_NODES/RAMFS_FILE_CAP を変更したら互換性が壊れるので、versionを上げる。
+// Fixed-size image (simple and robust for Flash)
+// NOTE: If RAMFS_MAX_NODES/RAMFS_FILE_CAP change, bump the version (breaks compatibility).
 #define RAMFS_IMG_MAGIC 0x52465331u  // 'RFS1'
 typedef struct {
     uint32_t magic;
@@ -465,15 +465,15 @@ bool ramfs_deserialize(const uint8_t *in, size_t len) {
     g_root = img.root;
     g_cwd  = img.cwd;
 
-    // file handle table は永続化しないので必ず初期化
+    // File handle table isn't persisted; always reinitialize
     memset(g_fh, 0, sizeof(g_fh));
 
-    // 最小の整合性チェック
+    // Minimal consistency checks
     if (g_root < 0 || g_root >= RAMFS_MAX_NODES) return false;
     if (!g_nodes[g_root].used || g_nodes[g_root].type != N_DIR) return false;
     if (g_cwd < 0 || g_cwd >= RAMFS_MAX_NODES || !g_nodes[g_cwd].used) g_cwd = g_root;
 
-    // 復元直後はdirtyではない
+    // Not dirty immediately after restore
     g_dirty = false;
     return true;
 }

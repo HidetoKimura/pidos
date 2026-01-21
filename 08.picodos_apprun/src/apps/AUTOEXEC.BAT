@@ -1,0 +1,6 @@
+REM Boot script
+DIR
+MD TEST
+CD TEST
+DIR
+CD \

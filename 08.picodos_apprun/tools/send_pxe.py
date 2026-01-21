@@ -53,7 +53,7 @@ def main():
     begin = struct.pack("<B I H I I", 1, 0, len(name_bytes), total, crc) + name_bytes
     write_frame(ser, begin)
 
-    # DATA: type=2, seq=1.., chunk 240 bytes (COBS後も余裕)
+    # DATA: type=2, seq=1.., chunk 240 bytes (COBS overhead still fits comfortably)
     seq = 1
     chunk_size = 240
     off = 0

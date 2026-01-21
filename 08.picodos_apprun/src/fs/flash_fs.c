@@ -9,11 +9,11 @@
 #include "pico/stdlib.h"
 
 
-// ---- ここを調整 ----
-#define FS_TOTAL_BYTES      (64u * 1024u)       // 合計64KB
-#define FS_SLOT_BYTES       (FS_TOTAL_BYTES/2)  // 32KBずつ(A/B)
+// ---- Adjust these as needed ----
+#define FS_TOTAL_BYTES      (64u * 1024u)       // Total 64KB
+#define FS_SLOT_BYTES       (FS_TOTAL_BYTES/2)  // 32KB each (A/B)
 
-// Flash末尾に確保
+// Reserve at end of flash
 #define FS_FLASH_BASE_OFFSET (PICO_FLASH_SIZE_BYTES - FS_TOTAL_BYTES)
 #define FS_SLOT0_OFFSET      (FS_FLASH_BASE_OFFSET + 0)
 #define FS_SLOT1_OFFSET      (FS_FLASH_BASE_OFFSET + FS_SLOT_BYTES)
@@ -62,14 +62,14 @@ typedef struct {
     size_t len; // MUST be FS_SLOT_BYTES
 } prog_args_t;
 
-// フラッシュ書換中はXIPが止まるのでRAM実行
+// Run from RAM since XIP halts during flash writes
 static void __not_in_flash_func(do_erase_prog)(void *p) {
     prog_args_t *a = (prog_args_t*)p;
 
-    // スロット全体を消去（4KB単位）
+    // Erase entire slot (4KB sectors)
     flash_range_erase(a->offset, a->len);
 
-    // 256Bページ単位で書込
+    // Program in 256B pages
     for (size_t i = 0; i < a->len; i += FLASH_PAGE_SIZE) {
         flash_range_program(a->offset + (uint32_t)i, a->src + i, FLASH_PAGE_SIZE);
     }
@@ -119,7 +119,7 @@ bool flash_fs_save(void) {
 
     prog_args_t args = { .offset = dst_off, .src = slot_buf, .len = FS_SLOT_BYTES };
 
-    // IRQ/他コア協調込みで安全に実行
+    // Execute safely with IRQ/multicore coordination
     int rc = flash_safe_execute(do_erase_prog, &args, 2000);
     return rc == PICO_OK;
 }

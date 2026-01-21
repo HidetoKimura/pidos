@@ -6,12 +6,12 @@
 #include "fs/ramfs.h"
 #include <string.h>
 
-// cmds_fs.c（DIR部分差し替え + 追記）
+// cmds_fs.c (DIR replaced + additions)
 
 static void cmd_dir(const char* path_or_null) {
     vfs_err_t e;
     char pwd[96];
-    // 表示は現在のcwdでよい（path指定のときも簡単化したければ省略可）
+    // Displaying the current cwd is fine (even if a path is given; simplified)
     ramfs_pwd(pwd, sizeof(pwd));
     dos_printf(" Directory of %s\r\n\r\n", pwd);
 
@@ -109,7 +109,7 @@ bool cmds_fs_try(int argc, char** argv) {
         cmd_rd(argv[1]); return true;
     }
 
-    // TYPE/COPY/DELはそのまま動く（ramfs_open/deleteがパス対応したので）
+    // TYPE/COPY/DEL work as-is (ramfs_open/delete handle paths now)
     if (strcmp(argv[0], "TYPE") == 0) {
         if (argc < 2) { dos_puts("Usage: TYPE <file>\r\n"); return true; }
         cmd_type(argv[1]); return true;

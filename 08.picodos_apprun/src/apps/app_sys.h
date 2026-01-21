@@ -1,4 +1,4 @@
-// app_sys.h (アプリ側)
+// app_sys.h (App-side)
 #pragma once
 #include <stdint.h>
 
@@ -28,10 +28,9 @@ static inline int sys_write(int fd, const void* buf, int len) {
 }
 static inline void sys_exit(int code) {
     sys_call(SYS_exit, code, 0, 0, 0);
-    while (1) {}
 }
 
-// vfs flags を “アプリ側に公開する最小セット”
+// Minimal set of vfs flags exposed to apps
 #define O_RDONLY  0
 #define O_WRONLY  1
 #define O_CREAT   (1<<8)

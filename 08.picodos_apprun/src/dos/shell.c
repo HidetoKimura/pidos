@@ -43,7 +43,7 @@ void shell_run(void) {
         dos_argv_t av;
         if (!dos_parse_line(line, &av)) continue;
 
-        // コマンドは大文字扱い（DOSっぽく）
+        // Treat command as uppercase (DOS-like)
         str_to_upper(av.argv[0]);
 
         if (cmds_core_try(av.argc, av.argv)) continue;

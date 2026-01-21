@@ -6,8 +6,8 @@
 #include <string.h>
 #include <stdint.h>
 
-// UART入力（あなたの実装に合わせて置き換え）
-// 例: dos_getchar() が1バイトブロッキングで取れる前提
+// UART input (replace per your implementation)
+// Example: assume dos_getchar() returns 1 byte blocking
 extern int dos_getchar(void);
 
 static uint32_t crc32_simple(const uint8_t* p, size_t n) {
@@ -17,7 +17,7 @@ static uint32_t crc32_simple(const uint8_t* p, size_t n) {
 }
 
 static bool read_frame(uint8_t* enc, size_t enc_cap, size_t* enc_len) {
-    // 0x00 区切りで受ける（COBSフレーム）
+    // Receive delimited by 0x00 (COBS frame)
     size_t n = 0;
     while (1) {
         int c = dos_getc_blocking();
@@ -35,7 +35,7 @@ static uint16_t rd16(const uint8_t* p){ return (uint16_t)p[0] | ((uint16_t)p[1]<
 static uint32_t rd32(const uint8_t* p){ return (uint32_t)p[0] | ((uint32_t)p[1]<<8) | ((uint32_t)p[2]<<16) | ((uint32_t)p[3]<<24); }
 
 bool xfer_recv_file(const char* path) {
-    // 受信バッファ（調整可）
+    // Receive buffers (tunable)
     static uint8_t enc[600];
     static uint8_t dec[520];
 
@@ -57,7 +57,7 @@ bool xfer_recv_file(const char* path) {
 
     if (dec_len < (size_t)(15 + name_len)) { dos_puts("Bad BEGIN len\r\n"); return false; }
 
-    // 受け取った名前はログ用（pathはRECV引数優先でOK）
+    // Received name is for logging (use RECV arg path)
     // const uint8_t* name = &dec[15];
 
     vfs_err_t e;
@@ -88,7 +88,7 @@ bool xfer_recv_file(const char* path) {
             int w = vfs_write(fd, chunk, chunk_len, &e);
             if (w != (int)chunk_len) { dos_puts("Write error\r\n"); vfs_close(fd); return false; }
 
-            // crc（簡易）
+            // CRC (simple)
             for (uint16_t i=0;i<chunk_len;i++) crc_acc = (crc_acc * 33u) ^ chunk[i];
 
             got_total += chunk_len;
@@ -97,7 +97,7 @@ bool xfer_recv_file(const char* path) {
             if (got_total > file_size) { dos_puts("Size overflow\r\n"); vfs_close(fd); return false; }
         }
         else if (t == 3) { // END
-            // END は seq = next_seq で来る想定（任意）
+            // END is expected with seq = next_seq (optional)
             (void)s;
             break;
         }

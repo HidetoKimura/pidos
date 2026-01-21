@@ -3,7 +3,7 @@ import pathlib, re, struct, subprocess, sys
 
 PXE_MAGIC = 0x30584550  # 'PXE0'
 PXE_VER   = 1
-BASE      = 0x20020000  # app.ld と一致させる
+BASE      = 0x20020000  # match app.ld
 SYMBOL    = "app_entry"
 
 def write_pxe(bin_path: pathlib.Path, out_pxe: pathlib.Path, entry_off: int, bss_size: int = 0):
@@ -31,7 +31,7 @@ def main():
     # ELF -> BIN
     subprocess.check_call([objcopy, "-O", "binary", str(elf), str(bin_path)])
 
-    # nm から app_entry アドレス取得
+    # Get app_entry address via nm
     nm_out = subprocess.check_output([nm, "-n", str(elf)], text=True, errors="ignore")
     addr = None
     for line in nm_out.splitlines():

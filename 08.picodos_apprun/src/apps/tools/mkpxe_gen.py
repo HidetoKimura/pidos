@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys, re, pathlib, subprocess
 
-BASE = 0x20020000  # app.ld と一致させる
+BASE = 0x20020000  # match app.ld
 SYMBOL = "app_entry"
 
 def main():

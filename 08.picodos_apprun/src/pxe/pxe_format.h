@@ -10,7 +10,7 @@ typedef struct {
     uint16_t ver;
     uint16_t flags;      // 0
     uint32_t image_size; // raw binary size
-    uint32_t bss_size;   // bytes (optional; 0でもOK)
+    uint32_t bss_size;   // bytes (optional; 0 is OK)
     uint32_t entry_off;  // entry offset from load base
     uint32_t reserved[3];
 } pxe_hdr_t;
